@@ -1,4 +1,5 @@
 let isCircleTurn;
+let onPVE_Mode;
 
 const winningCombinations = [
   [0, 1, 2],
@@ -21,7 +22,7 @@ const setQuerySelectors = () => {
   return { cellElements, board, winningMessage, winningMessageTextElement, restartButton };
 };
 
-const playModeDialog = () => {  
+const playModeDialog = () => {
   const overlay = document.createElement('div');
   const contener = document.createElement('div');
   const text = document.createElement('p');
@@ -55,13 +56,13 @@ const showPlayModeDialog = () => {
 
     // Adiciona os listeners aos botões
     buttonPVP.addEventListener('click', () => {
-      onMode = true;
+      onMode = false;
       overlay.style.display = 'none';
       resolve(onMode); // Resolve a Promise quando o modo é escolhido
     });
 
     buttonPVE.addEventListener('click', () => {
-      onMode = false;
+      onMode = true;
       overlay.style.display = 'none';
       resolve(onMode); // Resolve a Promise quando o modo é escolhido
     });
@@ -71,7 +72,7 @@ const showPlayModeDialog = () => {
 };
 
 
-const makeBoard = (onMode) => {
+const makeBoard = () => {
   // Cria o elemento div com a classe 'board' e o atributo 'data-board'
   const boardDiv = document.createElement('div');
   boardDiv.className = 'board';
@@ -132,16 +133,20 @@ const startGame = () => {
   winningMessage.classList.remove('show-winning-message');
 };
 
-const endGame = (isDraw) => {
+const endGame = (isWin, isDraw) => {
   const { winningMessageTextElement, winningMessage } = setQuerySelectors();
 
-  if (isDraw) {
-    winningMessageTextElement.innerText = 'Empate!';
-  } else {
+  console.log(isWin, isDraw);
+
+  if (isWin) {
     winningMessageTextElement.innerText = isCircleTurn ? 'O Venceu!' : 'X Venceu!';
+    winningMessage.classList.add('show-winning-message');
+  }
+  else if (isDraw) {
+    winningMessageTextElement.innerText = 'Empate!';
+    winningMessage.classList.add('show-winning-message');
   }
 
-  winningMessage.classList.add('show-winning-message');
 };
 
 const checkForWin = (currentPlayer) => {
@@ -156,14 +161,9 @@ const checkForWin = (currentPlayer) => {
 const checkForDraw = () => {
   const { cellElements } = setQuerySelectors();
 
-  // const cellElements = document.querySelectorAll("[data-cell]");
   return [...cellElements].every((cell) => {
     return cell.classList.contains('x') || cell.classList.contains('circle');
   });
-};
-
-const placeMark = (cell, classToAdd) => {
-  cell.classList.add(classToAdd);
 };
 
 const setBoardHoverClass = () => {
@@ -184,38 +184,85 @@ const swapTurns = () => {
   setBoardHoverClass();
 };
 
-const handleClick = (event) => {
-  // Colocar a marca (X ou Círculo)
-  const cell = event.target;
-  const classToAdd = isCircleTurn ? 'circle' : 'x';
-
-  placeMark(cell, classToAdd);
+const terminationConditions = (classToAdd) => {
 
   // Verificar por vitória
   const isWin = checkForWin(classToAdd);
-
   // Verificar por empate
   const isDraw = checkForDraw();
-  if (isWin) {
-    endGame(false);
-  } else if (isDraw) {
-    endGame(true);
-  } else {
-    // Mudar símbolo
+
+  endGame(isWin, isDraw)
+
+  // Mudar símbolo
+  if (!onPVE_Mode)
     swapTurns();
+
+  if (isWin) {
+    return isWin;
   }
+
+};
+
+const botPlay = (cell) => {
+  const { cellElements } = setQuerySelectors();
+  const freeCells = [];
+
+  for (const index of cellElements) {
+    if (!index.classList.contains('x') &&
+      !index.classList.contains('circle')) {
+
+      if (index.id !== cell.id) {
+        freeCells.push(index);
+      }
+    }
+  }
+  if (freeCells.length > 0) {
+    const randomIndex = Math.floor(Math.random() * freeCells.length);
+    const randomCell = freeCells[randomIndex];
+    randomCell.classList.add('circle');
+  }
+};
+
+const handleClick = (event) => {
+  // Colocar a marca (X ou Círculo)
+  const cell = event.target;
+  let classToAdd;
+
+  if (!onPVE_Mode) {
+    classToAdd = isCircleTurn ? 'circle' : 'x';
+  }
+  else {
+    isCircleTurn = false;
+    classToAdd = 'x';
+  }
+
+  cell.classList.add(classToAdd);
+  const isWin = terminationConditions(classToAdd);
+
+  if (onPVE_Mode) {
+    isCircleTurn = true;
+    classToAdd = 'circle';
+
+    botPlay(cell);
+
+    if (!isWin)
+      terminationConditions(classToAdd);
+
+    isCircleTurn = false;
+  }
+
 };
 
 playModeDialog();
 
 const runGame = async () => {
-  const onMode = await showPlayModeDialog();
-  makeBoard(onMode);
+  onPVE_Mode = await showPlayModeDialog();
+  makeBoard();
   makeWinningMessage();
   startGame();
   const restartButton = document.querySelector('[data-restart-button]');
 
-  restartButton.addEventListener('click', () => {location.reload();} );
+  restartButton.addEventListener('click', () => { location.reload(); });
 };
 
 runGame();
